@@ -8,10 +8,13 @@
 #define rtz_strpushcstring strpushcstring
 #define rtz_strcontains strcontains
 #define rtz_strinto strinto
+#define rtz_strsplit strsplit
+#define rtz_strprint strprint
 #endif
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 typedef struct String String;
 
@@ -27,12 +30,14 @@ struct String
 String *rtz_strnew(void);
 void rtz_strfree(String *str);
 String *rtz_strfrom(char *cstring);
-String *rtz_strreverse(String *str);
 String *rtz_strcopy(String *str);
+String *rtz_strreverse(String *str);
 int rtz_strpushch(String *str, char ch);
 int rtz_strpushcstring(String *str, char *cstring);
 int rtz_strcontains(String *str, char *pattern);
 char *rtz_strinto(String *str);
+String **rtz_strsplit(String *str, char *pattern, size_t *result_size);
+void rtz_strprint(String *str);
 
 String *rtz_strnew(void)
 {
@@ -56,7 +61,7 @@ String *rtz_strfrom(char *cstring)
 	for (size_t i = 0; cstring[i]; i++)
 		if (!rtz_strpushch(str, cstring[i]))
 		{
-			rtz_strfree(cstring);
+			rtz_strfree(str);
 			return 0;
 		}
 	return str;
@@ -117,8 +122,20 @@ int rtz_strpushcstring(String *str, char *cstring)
 	return 1;
 }
 
-int rtz_string_contains(String *str, char *pattern)
+int rtz_strcontains(String *str, char *pattern)
 {
+	size_t pattern_len, i, j;
+
+	pattern_len = strlen(pattern);
+	for (i = 0; i < str->len; i++)
+	{
+		j = 0;
+		while (i + j < str->len && str->inner[i + j] == pattern[j])
+		{
+			if (j == pattern_len - 1) return 1;
+			j++;
+		}
+	}
 	return 0;
 }
 
@@ -136,4 +153,44 @@ void rtz_strfree(String *str)
 	if (!str) return;
 	free(str->inner);
 	free(str);
+}
+
+String **rtz_strsplit(String *str, char *pattern, size_t *result_size)
+{
+	size_t i, j, k, offset, pattern_len;
+	String **result;
+
+	if (!str) return 0;
+	if (!pattern || !*pattern) return 0;
+	pattern_len = strlen(pattern);
+	*result_size = 0;
+	result = malloc(str->len * sizeof(String *));
+	for (i = 0; i < str->len; i++)
+		result[i] = rtz_strnew();
+	i = j = offset = 0;
+	while (i < str->len)
+	{
+		while (str->inner[i] == pattern[j])
+		{
+			if (j == pattern_len - 1)
+			{
+				for (k = offset; k < i - offset - pattern_len - 1; k++)
+					rtz_strpushch(result[*result_size], str->inner[k]);
+				offset = i + 1;
+				(*result_size)++;
+				break;
+			}
+			i++;
+			j++;
+		}
+		j = 0;
+		i++;
+	}
+	for (k = offset; k < i - offset - pattern_len - 1; k++)
+		rtz_strpushch(result[*result_size], str->inner[k]);
+	(*result_size)++;
+
+	for (i = *result_size; i < str->len; i++)
+		rtz_strfree(result[i]);
+	return result;
 }
