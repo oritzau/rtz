@@ -10,6 +10,7 @@
 #define rtz_strinto strinto
 #define rtz_strsplit strsplit
 #define rtz_strprint strprint
+#define rtz_splitfree splitfree
 #endif
 #include <unistd.h>
 #include <stdlib.h>
@@ -17,12 +18,19 @@
 #include <string.h>
 
 typedef struct String String;
+typedef struct Split Split;
 
 struct String
 {
 	size_t len;
 	size_t capacity;
 	char *inner;
+};
+
+struct Split
+{
+	String **split;
+	size_t size;
 };
 
 #define DEFAULT_CAPACITY 8
@@ -36,16 +44,17 @@ int rtz_strpushch(String *str, char ch);
 int rtz_strpushcstring(String *str, char *cstring);
 int rtz_strcontains(String *str, char *pattern);
 char *rtz_strinto(String *str);
-String **rtz_strsplit(String *str, char *pattern, size_t *result_size);
+Split rtz_strsplit(String *str, char *pattern);
 void rtz_strprint(String *str);
+void rtz_splitfree(Split split);
 
 String *rtz_strnew(void)
 {
-	String *str = malloc(sizeof(*str));
+	String *str = (String *)malloc(sizeof(*str));
 	if (!str) return 0;
 	str->len = 0;
 	str->capacity = DEFAULT_CAPACITY;
-	str->inner = malloc(sizeof(char) * DEFAULT_CAPACITY);
+	str->inner = (char *)malloc(sizeof(char) * DEFAULT_CAPACITY);
 	if (!str->inner)
 	{
 		free(str);
@@ -99,7 +108,7 @@ int rtz_strpushch(String *str, char ch)
 	if (str->len == str->capacity)
 	{
 		str->capacity *= 2;
-		str->inner = realloc(str->inner, str->capacity);
+		str->inner = (char *)realloc(str->inner, str->capacity);
 		if (!str->inner)
 		{
 			fprintf(stderr, "ctring_pushchar: out of memory\n");
@@ -142,9 +151,12 @@ int rtz_strcontains(String *str, char *pattern)
 char *rtz_strinto(String *str)
 {
 	if (!str) return 0;
+	char *cstring;
+
 	rtz_strpushch(str, 0);
-	char *cstring = str->inner;
-	free(str);
+	cstring = (char *)malloc(sizeof(char) * str->len + 1);
+	memcpy(cstring, str->inner, str->len);
+	cstring[str->len] = '\0';
 	return cstring;
 }
 
@@ -155,16 +167,19 @@ void rtz_strfree(String *str)
 	free(str);
 }
 
-String **rtz_strsplit(String *str, char *pattern, size_t *result_size)
+Split rtz_strsplit(String *str, char *pattern)
 {
-	size_t i, j, k, offset, pattern_len;
+	size_t i, j, k, offset, pattern_len, result_size;
 	String **result;
+	Split res;
 
-	if (!str) return 0;
-	if (!pattern || !*pattern) return 0;
+	res.split = 0;
+	res.size = 0;
+	if (!str) return res;
+	if (!pattern || !*pattern) return res;
 	pattern_len = strlen(pattern);
-	*result_size = 0;
-	result = malloc(str->len * sizeof(String *));
+	result_size = 0;
+	result = (String **)malloc(str->len * sizeof(String *));
 	for (i = 0; i < str->len; i++)
 		result[i] = rtz_strnew();
 	i = j = offset = 0;
@@ -175,9 +190,9 @@ String **rtz_strsplit(String *str, char *pattern, size_t *result_size)
 			if (j == pattern_len - 1)
 			{
 				for (k = 0; k < i - offset - pattern_len + 1; k++)
-					rtz_strpushch(result[*result_size], str->inner[offset + k]);
+					rtz_strpushch(result[result_size], str->inner[offset + k]);
 				offset = i + 1;
-				(*result_size)++;
+				result_size++;
 				break;
 			}
 			i++;
@@ -187,12 +202,14 @@ String **rtz_strsplit(String *str, char *pattern, size_t *result_size)
 		i++;
 	}
 	for (k = 0; offset + k < str->len; k++)
-		rtz_strpushch(result[*result_size], str->inner[offset + k]);
-	(*result_size)++;
+		rtz_strpushch(result[result_size], str->inner[offset + k]);
+	result_size++;
 
-	for (i = *result_size; i < str->len; i++)
+	for (i = result_size; i < str->len; i++)
 		rtz_strfree(result[i]);
-	return result;
+	res.split = result;
+	res.size = result_size;
+	return res;
 }
 
 void rtz_strprint(String *str)
@@ -203,4 +220,13 @@ void rtz_strprint(String *str)
 	for (i = 0; i < str->len; i++)
 		printf("%c", str->inner[i]);
 	puts("\"");
+}
+
+void rtz_splitfree(Split split)
+{
+	size_t i;
+
+	for (i = 0; i < split.size; i++)
+		rtz_strfree(split.split[i]);
+	free(split.split);
 }
