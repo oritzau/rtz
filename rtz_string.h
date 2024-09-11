@@ -93,7 +93,7 @@ String *rtz_strcopy(String *str)
 	return s;
 }
 
-int rtz_strpushchar(String *str, char ch)
+int rtz_strpushch(String *str, char ch)
 {
 	if (!str) return 0;
 	if (str->len == str->capacity)
@@ -174,8 +174,8 @@ String **rtz_strsplit(String *str, char *pattern, size_t *result_size)
 		{
 			if (j == pattern_len - 1)
 			{
-				for (k = offset; k < i - offset - pattern_len - 1; k++)
-					rtz_strpushch(result[*result_size], str->inner[k]);
+				for (k = 0; k < i - offset - pattern_len + 1; k++)
+					rtz_strpushch(result[*result_size], str->inner[offset + k]);
 				offset = i + 1;
 				(*result_size)++;
 				break;
@@ -186,11 +186,21 @@ String **rtz_strsplit(String *str, char *pattern, size_t *result_size)
 		j = 0;
 		i++;
 	}
-	for (k = offset; k < i - offset - pattern_len - 1; k++)
-		rtz_strpushch(result[*result_size], str->inner[k]);
+	for (k = 0; offset + k < str->len; k++)
+		rtz_strpushch(result[*result_size], str->inner[offset + k]);
 	(*result_size)++;
 
 	for (i = *result_size; i < str->len; i++)
 		rtz_strfree(result[i]);
 	return result;
+}
+
+void rtz_strprint(String *str)
+{
+	size_t i;
+
+	printf("\"");
+	for (i = 0; i < str->len; i++)
+		printf("%c", str->inner[i]);
+	puts("\"");
 }
